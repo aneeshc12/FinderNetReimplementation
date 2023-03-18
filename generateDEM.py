@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import open3d as o3d
 import copy
+import matplotlib.pyplot as plt
 
 binPath = "./sampleKittiData/LiDAR/000010.bin"
 
@@ -84,10 +85,10 @@ pcd = readPCD(binPath)
 worldPlane = generateWorldPlane(150, 150, 50)
 worldPlane.paint_uniform_color([1, 0.706, 0])
 
+# segment planes
 n_c, inliers = pcd.segment_plane(distance_threshold=0.25,
                                          ransac_n=3,
                                          num_iterations=1000)
-
 [a, b, c, d] = n_c
 n = [a, b, c]
 print(f"Plane equation: {a:.2f}x + {b:.2f}y + {c:.2f}z + {d:.2f} = 0")
@@ -126,11 +127,11 @@ initRot = np.identity(4)
 R = o3d.geometry.get_rotation_matrix_from_zyx(np.array([beta, 0, alpha]))
 initRot[:3,:3] = R
 
-draw_registration_result(pcd, worldPlane, np.identity(4))
-draw_registration_result(pcd, worldPlane, initRot)
+# draw_registration_result(pcd, worldPlane, np.identity(4))
+# draw_registration_result(pcd, worldPlane, initRot)
 
-draw_registration_result(circle_c, circle_w, np.identity(4))
-draw_registration_result(circle_c, circle_w, initRot)
+# draw_registration_result(circle_c, circle_w, np.identity(4))
+# draw_registration_result(circle_c, circle_w, initRot)
 
 # for p in np.asarray(circle_c.points):
 #     print(p, np.linalg.norm(p))
@@ -146,11 +147,91 @@ print("final rot: ", reg_p2p.transformation)
 
 print(reg_p2p)
 
-draw_registration_result(circle_c, circle_w, initRot)
-draw_registration_result(circle_c, circle_w, reg_p2p.transformation)
+# draw_registration_result(circle_c, circle_w, finalTransform)
 
-# evaluation = o3d.pipelines.registration.evaluate_registration(
-#                         circle_c, circle_w, 0.02, initRot)
-# print(evaluation)
+# apply canonicalization
+canonicalPCD = pcd.transform(finalTransform)
+
+# draw_registration_result(pcd, worldPlane, np.identity(4))
+# draw_registration_result(canonicalPCD, worldPlane, np.identity(4))
 
 
+## -- generate DEM --
+
+def generateDEM(canonicalPCD, G_w, G_h, d):
+    DEM = np.ones([G_w, G_h])
+    DEM *= -np.inf
+
+    # subsample
+    points = np.array(canonicalPCD.points)
+    
+    points[:, :2] /= d
+    points[:, :2] = np.floor(np.round(points[:, :2]))
+    points[:, :2] *= d
+    points = np.unique(points, axis=0)
+
+    # sort by x, y and then z
+    points = points[points[:,2].argsort(kind='mergesort')]
+    points = points[points[:,1].argsort(kind='mergesort')]
+    points = points[points[:,0].argsort(kind='mergesort')]
+
+    minX = points[:,0].min()
+    maxX = points[:,0].max()
+    Xdist = maxX - minX
+    Xres = float(Xdist)/G_w
+
+    minY = points[:,1].min()
+    maxY = points[:,1].max()
+    Ydist = maxY - minY
+    Yres = float(Ydist)/G_h
+
+    for point in points:
+        demLocation = [0,0]
+        demLocation[0] = int((point[0] - minX) // Xres) - 1
+        demLocation[1] = int((point[1] - minY) // Yres) - 1
+
+        if DEM[demLocation[0], demLocation[1]] < point[2]:
+            DEM[demLocation[0], demLocation[1]] = point[2]
+
+    # set all missing values to the minimum height
+    minHeight = np.inf
+    for i in range(DEM.shape[0]):
+        for j in range(DEM.shape[1]):
+            if DEM[i,j] != -np.inf and DEM[i,j] < minHeight:
+                minHeight = DEM[i,j]
+
+    for i in range(DEM.shape[0]):
+        for j in range(DEM.shape[1]):
+            if DEM[i,j] == -np.inf:
+                DEM[i,j] = minHeight
+
+    DEM -= minHeight
+    DEM /= DEM.max()
+
+    # subsampledPCD = canonicalPCD.voxel_down_sample(voxel_size=d)
+    subsampledPCD = o3d.geometry.PointCloud()
+    subsampledPCD.points = o3d.utility.Vector3dVector(points)
+
+    return DEM, subsampledPCD
+
+
+mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
+mesh = mesh.scale(20, [0,0,0])
+o3d.visualization.draw_geometries([mesh, canonicalPCD])
+
+DEM, subPCD = generateDEM(canonicalPCD, 500, 500, 0.2)
+o3d.visualization.draw_geometries([mesh, subPCD])
+
+DEM = cv2.resize(DEM, (800, 800), interpolation = cv2.INTER_AREA)
+# DEM = cv2.blur(DEM, (1,10))
+
+print(DEM)
+print(DEM.min())
+print(DEM.max())
+
+DEM /= DEM.max()
+
+DEM_display = cv2.applyColorMap(np.array(DEM * 256, dtype=np.uint8), cv2.COLORMAP_JET)
+cv2.imshow("Kitti DEM", DEM_display)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
