@@ -1,2 +1,7 @@
 sampleKittiData
 sampleKittiData/*
+*.zip
+weights/*
+weights
+*__pycache__*
+*wandb*
