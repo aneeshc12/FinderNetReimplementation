@@ -114,18 +114,29 @@ def generateDEMFromPCD(canonicalPCD, G_w, G_h, d):
 
     minX = points[:,0].min()
     maxX = points[:,0].max()
-    Xdist = maxX - minX
-    Xres = float(Xdist)/G_w
 
     minY = points[:,1].min()
     maxY = points[:,1].max()
+
+    Xdist = maxX - minX
     Ydist = maxY - minY
-    Yres = float(Ydist)/G_h
+
+    Xres = float(max(maxX, minX))/G_w
+    Yres = float(max(maxY, minY))/G_h
+
+    # enforce that the pcd center is the DEM center
+    maxRes = max(Xres, Yres)
+    Xres = Yres = maxRes
 
     for point in points:
         demLocation = [0,0]
-        demLocation[0] = int((point[0] - minX) // Xres) - 1
-        demLocation[1] = int((point[1] - minY) // Yres) - 1
+        demLocation[0] = int((point[0]) // Xres) - 1 + (G_w // 2)
+        demLocation[1] = int((point[1]) // Yres) - 1 + (G_w // 2)
+
+        if  demLocation[0] >= G_w or demLocation[0] < 0 \
+            or \
+            demLocation[1] >= G_h or demLocation[1] < 0:
+            continue
 
         if DEM[demLocation[0], demLocation[1]] < point[2]:
             DEM[demLocation[0], demLocation[1]] = point[2]
@@ -151,12 +162,30 @@ def generateDEMFromPCD(canonicalPCD, G_w, G_h, d):
 
     return DEM, subsampledPCD
 
-def generateDEM(binPath, randRot=False, vis=False):
+def generateDEM(binPath, randRot=False, vis=False, close_dist=15):
     # read pcds
     pcd = readPCD(binPath)
+
+    # pts = pcd.points
+    # mean = np.mean(pts, axis = 0)
+    # pts = pts - mean
+    # pcd.points = o3d.utility.Vector3dVector(pts)
+
     if np.array(pcd.points).shape[0] <= 3:
         return None
     # o3d.visualization.draw_geometries([pcd])
+
+    # close_pcd = copy.deepcopy(pcd)
+    close_pcd_points = np.array(pcd.points)
+    print(close_pcd_points.shape)
+    idx = np.argwhere(np.linalg.norm(close_pcd_points, axis=1) < 20)
+    # idx = np.argwhere(close_pcd_points[:,-1] > 0.2)
+    close_pcd_points = close_pcd_points[idx].reshape(idx.shape[0], 3)
+
+    print(close_pcd_points.shape)
+
+    close_pcd = o3d.geometry.PointCloud()
+    close_pcd.points = o3d.utility.Vector3dVector(close_pcd_points)
 
     if randRot == True:
         eul_ang = np.array([0, np.pi/2, 0])
@@ -171,16 +200,16 @@ def generateDEM(binPath, randRot=False, vis=False):
     worldPlane.paint_uniform_color([1, 0.706, 0])
 
     # segment planes
-    n_c, inliers = pcd.segment_plane(distance_threshold=0.25,
+    n_c, inliers = close_pcd.segment_plane(distance_threshold=0.25,
                                             ransac_n=3,
                                             num_iterations=1000)
     [a, b, c, d] = n_c
     n = [a, b, c]
     # print(f"Plane equation: {a:.2f}x + {b:.2f}y + {c:.2f}z + {d:.2f} = 0")
 
-    inlier_cloud = pcd.select_by_index(inliers)
+    inlier_cloud = close_pcd.select_by_index(inliers)
     inlier_cloud.paint_uniform_color([1.0, 0, 0])
-    outlier_cloud = pcd.select_by_index(inliers, invert=True).paint_uniform_color([0,0,1])
+    outlier_cloud = close_pcd.select_by_index(inliers, invert=True).paint_uniform_color([0,0,1])
 
 
     # obtain plane parameterisations, n's and c's
@@ -195,12 +224,15 @@ def generateDEM(binPath, randRot=False, vis=False):
     circle_w.points = o3d.utility.Vector3dVector(C_w)
     circle_w.paint_uniform_color([0, 0, 1.0])
 
+    mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
+    mesh = mesh.scale(10, [0,0,0])
 
     # o3d.visualization.draw_geometries([circle_c, inlier_cloud])
     # o3d.visualization.draw_geometries([circle_w, worldPlane])
     # o3d.visualization.draw_geometries([worldPlane, inlier_cloud])
+    # o3d.visualization.draw_geometries([circle_c, worldPlane, inlier_cloud, outlier_cloud, mesh])
+    # o3d.visualization.draw_geometries([circle_c, worldPlane, pcd, mesh])
     # o3d.visualization.draw_geometries([circle_c, circle_w])
-    # o3d.visualization.draw_geometries([circle_c, worldPlane, inlier_cloud, circle_w])
 
     # coarse canonicalizaton
     alpha = np.arctan(-n_c[0]/n_c[2])                                               # roll
@@ -243,21 +275,21 @@ def generateDEM(binPath, randRot=False, vis=False):
 
     # print("DEM list ", DEM)
 
-    if vis == True:
+    # if True == True:
         # draw_registration_result(circle_c, circle_w, finalTransform)
         # draw_registration_result(pcd, worldPlane, np.identity(4))
         # draw_registration_result(canonicalPCD, worldPlane, np.identity(4))
 
-        o3d.visualization.draw_geometries([mesh, pcd])
-        o3d.visualization.draw_geometries([mesh, canonicalPCD])
-        o3d.visualization.draw_geometries([mesh, subPCD])
+        # o3d.visualization.draw_geometries([mesh, pcd])
+        # o3d.visualization.draw_geometries([mesh, canonicalPCD])
+        # o3d.visualization.draw_geometries([mesh, subPCD])
 
     # DEM = cv2.resize(DEM, (800, 800), interpolation = cv2.INTER_AREA)
     # DEM = cv2.blur(DEM, (1,10))
 
     # DEM /= DEM.max()
 
-    return DEM
+    return DEM, finalTransform
 
 def displayDEM(DEM, title="img"):
     DEM_display = cv2.applyColorMap(np.array(DEM * 256, dtype=np.uint8), cv2.COLORMAP_JET)
