@@ -509,7 +509,6 @@ def DetermineYaw( Img1, Img2 , Z , Xmin , Ymin , resolution, viz=False):
 	Img1 = m( torch.tensor(Img1)).numpy()
 	Img2= m( torch.tensor(Img2)).numpy()
 
-
 	DEM1 = Img1
 	DEM2 = Img2
 
@@ -551,12 +550,14 @@ def DetermineYaw( Img1, Img2 , Z , Xmin , Ymin , resolution, viz=False):
 			pts2.append( A2  )
 
 
-	# print(len(good))
 
+	if viz == True:
+		img3 = cv2.drawMatchesKnn(Img1,keypoints_1,Img2,keypoints_2,good,None , flags=2 )
+		plt.imshow(img3)
+		plt.show()
 
-	img3 = cv2.drawMatchesKnn(Img1,keypoints_1,Img2,keypoints_2,good,None , flags=2 )
-	plt.imshow(img3)
-	plt.show()
+	if len(pts1) == 0 or len(pts2) == 0:
+		return np.eye(3), [0,0,1]
 
 	p,T = least_squared_2d_transform(np.asarray(pts1),np.asarray(pts2),[0,0,0])
 
@@ -564,7 +565,7 @@ def DetermineYaw( Img1, Img2 , Z , Xmin , Ymin , resolution, viz=False):
 
 	R_yaw[0:2, 0:2] = T[0:2, 0:2]
 
-
+	# SCALE METRIC
 	t = [ T[0][2]/10 , T[1][2]/10, 1 ]
 
 
@@ -574,39 +575,6 @@ def DetermineYaw( Img1, Img2 , Z , Xmin , Ymin , resolution, viz=False):
 
 	Pt1[: , 0:2] =  pts1
 	Pt2[: , 0:2] =  pts2
-
-
-
-	# T = cv2.estimateRigidTransform(np.asarray(pts1) , np.asarray(pts2) , False)
-
-
-	# NumGrids = 500
-	TrialPCD1 = o3d.geometry.PointCloud()
-	# TrialPCD2 = o3d.geometry.PointCloud()
-
-
-	# PCD1_new , PCD2_new = ExractPointClouds(DEM1, DEM2, Xmin, Ymin, resolution , pts1 , pts2)
-
-	# PCD1_new , PCD2_new = ExtractCompletePointClouds( DEM1, DEM2, Xmin, Ymin, resolution)
-
-
-
-	# TrialPCD1.points =  o3d.utility.Vector3dVector(PCD1_new )
-	# o3d.visualization.draw_geometries([TrialPCD1])
-	# TrialPCD2.points =  o3d.utility.Vector3dVector(PCD2_new)
-
-	# o3d.visualization.draw_geometries([TrialPCD1, TrialPCD2])
-
-	# for l in range(50):
-
-	# 	correspondance_list = determine_correspondance_yaw( np.asarray( PCD1_new), np.asarray( PCD2_new)  )
-	# 	R_yaw =  determine_R_matrix( np.asarray( PCD1_new), np.asarray( PCD2_new), correspondance_list)
-
-	# 	TrialPCD2 = TrialPCD2.rotate(R_yaw, center=(0, 0, 0 ))
-	# 	PCD2_new = np.asarray(TrialPCD2.points)
-
-
-	# R_yaw = reg_p2p.transformation[0:3,0:3]
 
 	return R_yaw , t
 
