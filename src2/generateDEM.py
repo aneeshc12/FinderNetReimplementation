@@ -177,12 +177,12 @@ def generateDEM(binPath, randRot=False, vis=False, close_dist=15):
 
     # close_pcd = copy.deepcopy(pcd)
     close_pcd_points = np.array(pcd.points)
-    print(close_pcd_points.shape)
+    # print(close_pcd_points.shape)
     idx = np.argwhere(np.linalg.norm(close_pcd_points, axis=1) < 20)
     # idx = np.argwhere(close_pcd_points[:,-1] > 0.2)
     close_pcd_points = close_pcd_points[idx].reshape(idx.shape[0], 3)
 
-    print(close_pcd_points.shape)
+    # print(close_pcd_points.shape)
 
     close_pcd = o3d.geometry.PointCloud()
     close_pcd.points = o3d.utility.Vector3dVector(close_pcd_points)
@@ -265,9 +265,9 @@ def generateDEM(binPath, randRot=False, vis=False, close_dist=15):
     """
     # finalTransform = np.identity(4)
 
-
-    mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
-    mesh = mesh.scale(20, [0,0,0])
+    if vis == True:
+        mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
+        mesh = mesh.scale(20, [0,0,0])
 
     # apply canonicalization
     canonicalPCD = pcd.transform(finalTransform)
@@ -275,14 +275,14 @@ def generateDEM(binPath, randRot=False, vis=False, close_dist=15):
 
     # print("DEM list ", DEM)
 
-    # if True == True:
-        # draw_registration_result(circle_c, circle_w, finalTransform)
-        # draw_registration_result(pcd, worldPlane, np.identity(4))
-        # draw_registration_result(canonicalPCD, worldPlane, np.identity(4))
+    if vis == True:
+        draw_registration_result(circle_c, circle_w, finalTransform)
+        draw_registration_result(pcd, worldPlane, np.identity(4))
+        draw_registration_result(canonicalPCD, worldPlane, np.identity(4))
 
-        # o3d.visualization.draw_geometries([mesh, pcd])
-        # o3d.visualization.draw_geometries([mesh, canonicalPCD])
-        # o3d.visualization.draw_geometries([mesh, subPCD])
+        o3d.visualization.draw_geometries([mesh, pcd])
+        o3d.visualization.draw_geometries([mesh, canonicalPCD])
+        o3d.visualization.draw_geometries([mesh, subPCD])
 
     # DEM = cv2.resize(DEM, (800, 800), interpolation = cv2.INTER_AREA)
     # DEM = cv2.blur(DEM, (1,10))

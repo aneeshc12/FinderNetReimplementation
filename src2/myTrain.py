@@ -26,9 +26,10 @@ from PIL import Image
 import wandb
 
 parser = argparse.ArgumentParser(description='Train Code for Spatial Transformer')
-# parser.add_argument('--data_path', help='Path to the dataset', default='/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainKitti.csv')
-parser.add_argument('--data_path', help='Path to the dataset', default='/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainLuF.csv')
-parser.add_argument('--base_path', help='path to parent directory of the image dataset folder', default='/scratch/aneesh.chavan/LuF')
+parser.add_argument('--data_path', help='Path to the dataset', default='/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainKitti.csv')
+# parser.add_argument('--data_path', help='Path to the dataset', default='/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainLuF.csv')
+parser.add_argument('--base_path', help='path to parent directory of the image dataset folder', default='/scratch/aneesh.chavan/KITTI')
+# parser.add_argument('--base_path', help='path to parent directory of the image dataset folder', default='/scratch/aneesh.chavan/LuF')
 parser.add_argument('--batch_size', help='Size of Batch', default= 12)
 parser.add_argument('--lr', help='Learning rate', default= 1e-4)
 parser.add_argument('--num_epochs', help='Number of epochs', default = 30 )
@@ -52,14 +53,16 @@ args = parser.parse_args()
 def readImg(paths):
     imgs = []
     for i in range(len(paths)):
-        # img = np.asarray(Image.open(paths[i])).astype(np.float32)
-        img = np.load(paths[i]).astype(np.float32)
+        img = np.asarray(Image.open(paths[i])).astype(np.float32)
+        # img = np.load(paths[i]).astype(np.float32)
         img = cv2.resize(img, (500, 500), interpolation=cv2.INTER_NEAREST)
 
         # imgs.append(img.astype(np.uint8))
         imgs.append(img)
     
+    print(len(imgs), imgs[0], type(img[0]))
     imgs = torch.tensor(np.array(imgs), dtype=torch.float).to(device)
+    print("\n\n\n\n", imgs)
     return imgs
 
 ''' torch init '''
@@ -178,11 +181,11 @@ zeros = torch.zeros((args.batch_size, 1)).to("cuda")
 saveCounter = 0
 
 '''create datasets containing minibatches of size 12'''
-# anchorDataSet, positiveDataSet, negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainKitti.csv')
-# val_anchorDataSet, val_positiveDataSet, val_negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainKitti.csv', mode='validation')
+anchorDataSet, positiveDataSet, negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplementation/src2/TrainKitti.csv')
+val_anchorDataSet, val_positiveDataSet, val_negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplementation/src2/TrainKitti.csv', mode='validation')
 
-anchorDataSet, positiveDataSet, negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainLuF.csv')
-val_anchorDataSet, val_positiveDataSet, val_negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplemantation/src2/TrainLuF.csv', mode='validation')
+# anchorDataSet, positiveDataSet, negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplementation/src2/TrainLuF.csv')
+# val_anchorDataSet, val_positiveDataSet, val_negativeDataSet = CreateBatchData('/home2/aneesh.chavan/FinderNetReimplementation/src2/TrainLuF.csv', mode='validation')
 
 print("Datasets created")
 
@@ -206,7 +209,7 @@ for e in range(args.num_epochs):
         anchorImgs = readImg(anchorDataSet[batch_num])
         positiveImgs = readImg(positiveDataSet[batch_num])
         negativeImgs = readImg(negativeDataSet[batch_num])
-    
+
         # for i in range(args.batch_size):
         #     print("triplet ", i)
             # displayDEM(anchorImgs[i].detach().cpu())

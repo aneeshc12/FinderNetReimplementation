@@ -5,3 +5,5 @@ weights/*
 weights
 *__pycache__*
 *wandb*
+*.pkl
+*.pt
