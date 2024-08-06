@@ -7,3 +7,7 @@ weights
 *wandb*
 *.pkl
 *.pt
+inference_pcds
+inference_pcds/*
+KITTI09_inference
+KITTI09_inference/*

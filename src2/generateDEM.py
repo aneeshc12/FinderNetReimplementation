@@ -95,17 +95,26 @@ def draw_registration_result(source, target, transformation):
 
 
 ## -- generate DEM --
-def generateDEMFromPCD(canonicalPCD, G_w, G_h, d):
+def generateDEMFromPCD(canonicalPCD, G_w, G_h, d, close_range=50):
     DEM = np.ones([G_w, G_h])
     DEM *= -np.inf
 
     # subsample
     points = np.array(canonicalPCD.points)
-    
-    points[:, :2] /= d
-    points[:, :2] = np.floor(np.round(points[:, :2]))
-    points[:, :2] *= d
+
+    Distance_from_Center = np.linalg.norm(points , axis=1)
+    indices = Distance_from_Center < close_range
+    points = points[indices]
+
+    indices = points[:,2] > 0
+    points = points[indices]
+
+    # points[:, :2] /= d
+    # points[:, :2] = np.floor(np.round(points[:, :2]))
+    # points[:, :2] *= d
     points = np.unique(points, axis=0)
+
+    points[:, 2] -= np.min(points[:2])
 
     # sort by x, y and then z
     points = points[points[:,2].argsort(kind='mergesort')]
@@ -137,9 +146,10 @@ def generateDEMFromPCD(canonicalPCD, G_w, G_h, d):
             or \
             demLocation[1] >= G_h or demLocation[1] < 0:
             continue
-
-        if DEM[demLocation[0], demLocation[1]] < point[2]:
-            DEM[demLocation[0], demLocation[1]] = point[2]
+        
+        # into 10 added as per original code
+        if DEM[demLocation[0], demLocation[1]] < point[2] * 10:
+            DEM[demLocation[0], demLocation[1]] = point[2] * 10
 
     # set all missing values to the minimum height
     minHeight = np.inf
@@ -162,14 +172,21 @@ def generateDEMFromPCD(canonicalPCD, G_w, G_h, d):
 
     return DEM, subsampledPCD
 
-def generateDEM(binPath, randRot=False, vis=False, close_dist=15):
+def generateDEM(binPath=None, randRot=False, vis=False, close_dist=50, direct_pcd=None):
+    if (binPath != None and direct_pcd != None) or (binPath == None and direct_pcd==None):
+        print("Exxactly 1 of file path or direct pcd accepted")
+        assert(False)
+        
+    if direct_pcd == None:
     # read pcds
-    pcd = readPCD(binPath)
+        pcd = readPCD(binPath)
+    else:
+        pcd = direct_pcd
 
-    # pts = pcd.points
-    # mean = np.mean(pts, axis = 0)
-    # pts = pts - mean
-    # pcd.points = o3d.utility.Vector3dVector(pts)
+    pts = pcd.points
+    mean = np.mean(pts, axis = 0)
+    pts = pts - mean
+    pcd.points = o3d.utility.Vector3dVector(pts)
 
     if np.array(pcd.points).shape[0] <= 3:
         return None
@@ -200,7 +217,7 @@ def generateDEM(binPath, randRot=False, vis=False, close_dist=15):
     worldPlane.paint_uniform_color([1, 0.706, 0])
 
     # segment planes
-    n_c, inliers = close_pcd.segment_plane(distance_threshold=0.25,
+    n_c, inliers = close_pcd.segment_plane(distance_threshold=0.001,
                                             ransac_n=3,
                                             num_iterations=1000)
     [a, b, c, d] = n_c
@@ -271,7 +288,7 @@ def generateDEM(binPath, randRot=False, vis=False, close_dist=15):
 
     # apply canonicalization
     canonicalPCD = pcd.transform(finalTransform)
-    DEM, subPCD = generateDEMFromPCD(canonicalPCD, 500, 500, 0.2)
+    DEM, subPCD = generateDEMFromPCD(canonicalPCD, 500, 500, 0.2, close_range=close_dist)
 
     # print("DEM list ", DEM)
 
@@ -296,4 +313,9 @@ def displayDEM(DEM, title="img"):
     cv2.imshow(title, DEM_display)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    
+
+if __name__ == "__main__":  
+    pcd = o3d.io.read_point_cloud("/home2/aneesh.chavan/FinderNetReimplementation/inference_pcds/anchor/000008.ply")
+    DEM, tx = generateDEM(direct_pcd=pcd)
+
+    print(tx, DEM.shape)

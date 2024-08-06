@@ -14,7 +14,8 @@ with torch.no_grad():
 
     # args
     model_ckpt_path = '/home2/aneesh.chavan/FinderNetReimplementation/weights/cwt/cwt_weight.pt'
-    DEM_root = '/scratch/aneesh.chavan/KITTI/09/'
+    DEM_root = '/home2/aneesh.chavan/FinderNetReimplementation/inference_pcds/'
+    DEM_list = '/home2/aneesh.chavan/FinderNetReimplementation/inference_pcds/anchor_DEMs'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # load model
@@ -29,17 +30,24 @@ with torch.no_grad():
         def __init__(self, DEM_root):
             self.DEM_root = DEM_root
 
-            self.file_names = sorted([os.path.join(DEM_root, f) for f in os.listdir(DEM_root)])[::3]
-            self.length = len(self.file_names) ** 2
+            self.anchor_files = sorted([os.path.join(DEM_root, "anchor_DEMs", f) for f in os.listdir(os.path.join(DEM_root, "anchor_DEMs"))])
+            self.query_files = sorted([os.path.join(DEM_root, "query_DEMs", f) for f in os.listdir(os.path.join(DEM_root, "query_DEMs"))])
+            self.length = len(self.anchor_files) * len(self.query_files)
+
+            print(len(self.anchor_files), len(self.query_files))
+
+            print(self.anchor_files[:5])
+            print()
+            print(self.query_files[:5])
 
         def __len__(self):
             return self.length
         
         def __getitem__(self, idx):
-            idx1 = idx // len(self.file_names)
-            idx2 = idx %  len(self.file_names)
+            idx1 = idx // len(self.anchor_files)
+            idx2 = idx %  len(self.query_files)
 
-            return self.file_names[idx1], self.file_names[idx2]
+            return self.anchor_files[idx1], self.query_files[idx2]
         
     dl = PairwiseKittiDataset(DEM_root)
     loader = DataLoader(dl, batch_size=24)
@@ -98,8 +106,8 @@ with torch.no_grad():
     #     print(i, rot_dict[i])
     
     import pickle 
-    with open('./KITTI09_inference/score_dict.pkl', 'wb') as f:
+    with open('/home2/aneesh.chavan/FinderNetReimplementation/inference_pcds/inference_scores/cross_score_dict.pkl', 'wb') as f:
         pickle.dump(score_dict, f)
 
-    with open('./KITTI09_inference/rot_dict.pkl', 'wb') as f:
+    with open('/home2/aneesh.chavan/FinderNetReimplementation/inference_pcds/inference_scores/cross_rot_dict.pkl', 'wb') as f:
         pickle.dump(rot_dict, f)
